@@ -1,0 +1,19 @@
+{
+  "appId": "com.lotato.pro",
+  "appName": "LOTATO PRO",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  },
+  "android": {
+    "backgroundColor": "#0a0b1e"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2000,
+      "launchAutoHide": true,
+      "backgroundColor": "#0a0b1e",
+      "showSpinner": false
+    }
+  }
+}
