@@ -1,45 +1,134 @@
-Skip to content
-Native
-Repository navigation
-Code
-Issues
-Actions
-Build APK — LOTATO PRO
-Create main.yml #1
-Annotations
-1 error and 1 warning
-Build APK Android
-failed 19 minutes ago in 12s
-3s
-0s
-1s
-4s
-Run actions/setup-node@v4
-Attempting to download 20...
-Acquiring 20.20.2 - x64 from https://github.com/actions/node-versions/releases/download/20.20.2-23521894959/node-20.20.2-linux-x64.tar.gz
-Extracting ...
-/usr/bin/tar xz --strip 1 --warning=no-unknown-keyword --overwrite -C /home/runner/work/_temp/df7124cd-1a12-4b77-a719-f14e96e61eaa -f /home/runner/work/_temp/a02bb216-de19-4a56-bb24-f63fd7b2ca16
-Adding to the cache ...
-Environment details
-/opt/hostedtoolcache/node/20.20.2/x64/bin/npm config get cache
-/home/runner/.npm
-Error: Dependencies lock file is not found in /home/runner/work/Native/Native. Supported file patterns: package-lock.json,npm-shrinkwrap.json,yarn.lock
-0s
-0s
-0s
-0s
-0s
-0s
-0s
-0s
-0s
-0s
-0s
-0s
-0s
-0s
-0s
-0s
-0s
-1s
-0s
+name: Build APK — LOTATO PRO
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    name: Build APK Android
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android components
+        run: |
+          yes | sdkmanager --licenses || true
+          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+
+      - name: Install Node dependencies
+        run: npm install
+
+      - name: Add Android platform
+        run: |
+          if [ ! -d "android" ]; then
+            npx cap add android
+          fi
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Inject ThermalPrinter plugin
+        run: |
+          PLUGIN_DIR="android/app/src/main/java/com/lotato/printer"
+          mkdir -p "$PLUGIN_DIR"
+          cp android-plugin/src/main/java/com/lotato/printer/ThermalPrinterPlugin.java "$PLUGIN_DIR/"
+
+      - name: Create Sunmi AIDL interface
+        run: |
+          AIDL_DIR="android/app/src/main/aidl/woyou/aidlservice/jiuiv5"
+          mkdir -p "$AIDL_DIR"
+
+          cat > "$AIDL_DIR/IWoyouService.aidl" << 'AIDL'
+          package woyou.aidlservice.jiuiv5;
+          import woyou.aidlservice.jiuiv5.ICallback;
+          import android.graphics.Bitmap;
+          interface IWoyouService {
+              void printerInit(in ICallback callback);
+              void printText(String text, in ICallback callback);
+              void printBitmap(in Bitmap bitmap, in ICallback callback);
+              void cutPaper(in ICallback callback);
+          }
+          AIDL
+
+          cat > "$AIDL_DIR/ICallback.aidl" << 'AIDL'
+          package woyou.aidlservice.jiuiv5;
+          interface ICallback {
+              void onRunResult(boolean isSuccess);
+              void onReturnString(String result);
+              void onRaiseException(int code, String msg);
+          }
+          AIDL
+
+      - name: Configure build.gradle
+        run: |
+          BG="android/app/build.gradle"
+          grep -q "buildFeatures" "$BG" || sed -i 's/android {/android {\n    buildFeatures { aidl true }/' "$BG"
+          grep -q "sunmi" "$BG" || sed -i 's/dependencies {/dependencies {\n    implementation "com.sunmi:printerlibrary:1.0.14"/' "$BG"
+
+      - name: Register plugin in MainActivity
+        run: |
+          MAIN=$(find android -name "MainActivity.java" | head -1)
+          if [ -n "$MAIN" ]; then
+            sed -i 's/import com.getcapacitor.BridgeActivity;/import com.getcapacitor.BridgeActivity;\nimport com.lotato.printer.ThermalPrinterPlugin;/' "$MAIN"
+            sed -i 's/public class MainActivity extends BridgeActivity {/public class MainActivity extends BridgeActivity {\n    @Override\n    public void onCreate(android.os.Bundle s) {\n        registerPlugin(ThermalPrinterPlugin.class);\n        super.onCreate(s);\n    }/' "$MAIN"
+          else
+            MAIN=$(find android -name "MainActivity.kt" | head -1)
+            sed -i 's/import com.getcapacitor.BridgeActivity/import com.getcapacitor.BridgeActivity\nimport com.lotato.printer.ThermalPrinterPlugin/' "$MAIN"
+            sed -i 's/class MainActivity : BridgeActivity()/class MainActivity : BridgeActivity() {\n    override fun onCreate(s: android.os.Bundle?) {\n        registerPlugin(ThermalPrinterPlugin::class.java)\n        super.onCreate(s)\n    }\n}/' "$MAIN"
+          fi
+
+      - name: Add permissions
+        run: |
+          MANIFEST="android/app/src/main/AndroidManifest.xml"
+          grep -q "BLUETOOTH_CONNECT" "$MANIFEST" || sed -i '/<manifest/a\    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.BLUETOOTH" />\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />' "$MANIFEST"
+
+      - name: Make Gradle executable
+        run: chmod +x android/gradlew
+
+      - name: Build Debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Prepare APK
+        run: |
+          DATE=$(date +'%Y%m%d-%H%M')
+          APK_NAME="LOTATO-PRO-v${{ github.run_number }}-${DATE}.apk"
+          cp android/app/build/outputs/apk/debug/app-debug.apk "$APK_NAME"
+          echo "APK_NAME=$APK_NAME" >> $GITHUB_ENV
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LOTATO-PRO-APK
+          path: ${{ env.APK_NAME }}
+          retention-days: 30
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ github.run_number }}
+          name: "LOTATO PRO v${{ github.run_number }}"
+          body: |
+            ## APK LOTATO PRO v${{ github.run_number }}
+            Telecharger le fichier .apk epi enstale li sou Android.
+          files: ${{ env.APK_NAME }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
