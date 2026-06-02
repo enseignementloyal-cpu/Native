@@ -107,28 +107,16 @@ jobs:
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
-      - name: Prepare APK
+      - name: Rename APK
         run: |
           DATE=$(date +'%Y%m%d-%H%M')
           APK_NAME="LOTATO-PRO-v${{ github.run_number }}-${DATE}.apk"
           cp android/app/build/outputs/apk/debug/app-debug.apk "$APK_NAME"
           echo "APK_NAME=$APK_NAME" >> $GITHUB_ENV
 
-      - name: Upload artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: LOTATO-PRO-APK
+          name: LOTATO-PRO-v${{ github.run_number }}
           path: ${{ env.APK_NAME }}
           retention-days: 30
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: v${{ github.run_number }}
-          name: "LOTATO PRO v${{ github.run_number }}"
-          body: |
-            ## APK LOTATO PRO v${{ github.run_number }}
-            Telecharger le fichier .apk epi enstale li sou Android.
-          files: ${{ env.APK_NAME }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
