@@ -1,6 +1,6 @@
 // config.js
 const API_CONFIG = {
-    BASE_URL: 'https://lotato1.onrender.com/api', // À adapter selon votre environnement
+    BASE_URL: 'https://lotato2.onrender.com/api', // À adapter selon votre environnement
     ENDPOINTS: {
         LOGIN: '/auth/login',
         SAVE_TICKET: '/tickets/save',
