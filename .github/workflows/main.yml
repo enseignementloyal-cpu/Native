@@ -45,61 +45,72 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
+      # ── Plugin ThermalPrinter ──────────────────────────────────
       - name: Inject ThermalPrinter plugin
         run: |
           PLUGIN_DIR="android/app/src/main/java/com/lotato/printer"
           mkdir -p "$PLUGIN_DIR"
           cp android-plugin/src/main/java/com/lotato/printer/ThermalPrinterPlugin.java "$PLUGIN_DIR/"
 
-      - name: Create Sunmi AIDL interface
+      # ── AIDL Sunmi (sans indentation pour éviter erreurs) ──────
+      - name: Create Sunmi AIDL
         run: |
           AIDL_DIR="android/app/src/main/aidl/woyou/aidlservice/jiuiv5"
           mkdir -p "$AIDL_DIR"
 
-          cat > "$AIDL_DIR/IWoyouService.aidl" << 'AIDL'
-          package woyou.aidlservice.jiuiv5;
-          import woyou.aidlservice.jiuiv5.ICallback;
-          import android.graphics.Bitmap;
-          interface IWoyouService {
-              void printerInit(in ICallback callback);
-              void printText(String text, in ICallback callback);
-              void printBitmap(in Bitmap bitmap, in ICallback callback);
-              void cutPaper(in ICallback callback);
-          }
-          AIDL
+          printf 'package woyou.aidlservice.jiuiv5;\nimport woyou.aidlservice.jiuiv5.ICallback;\nimport android.graphics.Bitmap;\ninterface IWoyouService {\nvoid printerInit(in ICallback callback);\nvoid printText(String text, in ICallback callback);\nvoid printBitmap(in Bitmap bitmap, in ICallback callback);\nvoid cutPaper(in ICallback callback);\nvoid lineWrap(int n, in ICallback callback);\n}\n' > "$AIDL_DIR/IWoyouService.aidl"
 
-          cat > "$AIDL_DIR/ICallback.aidl" << 'AIDL'
-          package woyou.aidlservice.jiuiv5;
-          interface ICallback {
-              void onRunResult(boolean isSuccess);
-              void onReturnString(String result);
-              void onRaiseException(int code, String msg);
-          }
-          AIDL
+          printf 'package woyou.aidlservice.jiuiv5;\ninterface ICallback {\nvoid onRunResult(boolean isSuccess);\nvoid onReturnString(String result);\nvoid onRaiseException(int code, String msg);\n}\n' > "$AIDL_DIR/ICallback.aidl"
 
+      # ── Ajouter dépôt Sunmi + dépendance dans build.gradle ─────
       - name: Configure build.gradle
         run: |
           BG="android/app/build.gradle"
-          grep -q "buildFeatures" "$BG" || sed -i 's/android {/android {\n    buildFeatures { aidl true }/' "$BG"
-          grep -q "sunmi" "$BG" || sed -i 's/dependencies {/dependencies {\n    implementation "com.sunmi:printerlibrary:1.0.14"/' "$BG"
 
-      - name: Register plugin in MainActivity
+          # Activer AIDL
+          grep -q "buildFeatures" "$BG" || \
+            sed -i 's/android {/android {\n    buildFeatures { aidl true }/' "$BG"
+
+          # Dépendance Sunmi
+          grep -q "sunmi" "$BG" || \
+            sed -i 's/dependencies {/dependencies {\n    implementation "com.sunmi:printerlibrary:1.0.14"/' "$BG"
+
+          # Ajouter dépôt Maven Sunmi dans build.gradle du projet
+          ROOT_BG="android/build.gradle"
+          grep -q "sunmi-os" "$ROOT_BG" || \
+            sed -i 's/repositories {/repositories {\n        maven { url "https:\/\/raw.githubusercontent.com\/sunmi-os\/SunmiPrinterLibrary\/master" }/' "$ROOT_BG"
+
+      # ── Enregistrer plugin dans MainActivity ───────────────────
+      - name: Register ThermalPrinter in MainActivity
         run: |
           MAIN=$(find android -name "MainActivity.java" | head -1)
           if [ -n "$MAIN" ]; then
-            sed -i 's/import com.getcapacitor.BridgeActivity;/import com.getcapacitor.BridgeActivity;\nimport com.lotato.printer.ThermalPrinterPlugin;/' "$MAIN"
-            sed -i 's/public class MainActivity extends BridgeActivity {/public class MainActivity extends BridgeActivity {\n    @Override\n    public void onCreate(android.os.Bundle s) {\n        registerPlugin(ThermalPrinterPlugin.class);\n        super.onCreate(s);\n    }/' "$MAIN"
+            echo "→ Trouvé MainActivity.java : $MAIN"
+            # Ajouter import seulement si pas déjà là
+            grep -q "ThermalPrinterPlugin" "$MAIN" || \
+              sed -i 's/import com.getcapacitor.BridgeActivity;/import com.getcapacitor.BridgeActivity;\nimport com.lotato.printer.ThermalPrinterPlugin;/' "$MAIN"
+            # Ajouter registerPlugin seulement si pas déjà là
+            grep -q "registerPlugin" "$MAIN" || \
+              sed -i 's/super.onCreate/registerPlugin(ThermalPrinterPlugin.class);\n        super.onCreate/' "$MAIN"
           else
             MAIN=$(find android -name "MainActivity.kt" | head -1)
-            sed -i 's/import com.getcapacitor.BridgeActivity/import com.getcapacitor.BridgeActivity\nimport com.lotato.printer.ThermalPrinterPlugin/' "$MAIN"
-            sed -i 's/class MainActivity : BridgeActivity()/class MainActivity : BridgeActivity() {\n    override fun onCreate(s: android.os.Bundle?) {\n        registerPlugin(ThermalPrinterPlugin::class.java)\n        super.onCreate(s)\n    }\n}/' "$MAIN"
+            echo "→ Trouvé MainActivity.kt : $MAIN"
+            grep -q "ThermalPrinterPlugin" "$MAIN" || \
+              sed -i 's/import com.getcapacitor.BridgeActivity/import com.getcapacitor.BridgeActivity\nimport com.lotato.printer.ThermalPrinterPlugin/' "$MAIN"
+            grep -q "registerPlugin" "$MAIN" || \
+              sed -i 's/super.onCreate/registerPlugin(ThermalPrinterPlugin::class.java)\n        super.onCreate/' "$MAIN"
           fi
+          echo "→ Contenu MainActivity après modification :"
+          cat "$MAIN"
 
+      # ── Permissions Android ────────────────────────────────────
       - name: Add permissions
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
-          grep -q "BLUETOOTH_CONNECT" "$MANIFEST" || sed -i '/<manifest/a\    <uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.BLUETOOTH" />\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />' "$MANIFEST"
+          grep -q "BLUETOOTH_CONNECT" "$MANIFEST" || \
+            sed -i 's/<uses-permission android:name="android.permission.INTERNET" \/>/\<uses-permission android:name="android.permission.INTERNET" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" \/>/' "$MANIFEST"
 
+      # ── Build ──────────────────────────────────────────────────
       - name: Make Gradle executable
         run: chmod +x android/gradlew
 
@@ -107,6 +118,7 @@ jobs:
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon --stacktrace
 
+      # ── APK en téléchargement direct ───────────────────────────
       - name: Rename APK
         run: |
           DATE=$(date +'%Y%m%d-%H%M')
