@@ -590,6 +590,27 @@
             });
             setLoading(false);
         });
+    
+    // ── TAP SECRET SUPERADMIN (5 taps rapides sur la couronne) ──
+    let tapCount = 0;
+    let tapTimer = null;
+    document.addEventListener('DOMContentLoaded', function() {
+        const logo = document.querySelector('.logo-icon');
+        if (!logo) return;
+        logo.addEventListener('click', function() {
+            tapCount++;
+            clearTimeout(tapTimer);
+            if (tapCount >= 5) {
+                tapCount = 0;
+                // Vibration discrète si disponible
+                if (navigator.vibrate) navigator.vibrate([30, 50, 30]);
+                window.location.href = 'superadmin.html';
+                return;
+            }
+            tapTimer = setTimeout(() => { tapCount = 0; }, 2000);
+        });
+    });
+
     </script>
 </body>
 </html>
