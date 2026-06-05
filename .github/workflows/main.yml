@@ -45,14 +45,9 @@ jobs:
       - name: Sync Capacitor
         run: npx cap sync android
 
-      # ════════════════════════════════════════════════════════
-      # ICÔNES — copier dans tous les dossiers mipmap Android
-      # ════════════════════════════════════════════════════════
       - name: Setup app icons
         run: |
           RES="android/app/src/main/res"
-
-          # Créer tous les dossiers mipmap
           mkdir -p "$RES/mipmap-mdpi"
           mkdir -p "$RES/mipmap-hdpi"
           mkdir -p "$RES/mipmap-xhdpi"
@@ -61,143 +56,77 @@ jobs:
           mkdir -p "$RES/mipmap-anydpi-v26"
           mkdir -p "$RES/drawable"
 
-          # Copier les icônes aux bonnes tailles
-          cp www/icons/48.png  "$RES/mipmap-mdpi/ic_launcher.png"     2>/dev/null || \
-          cp www/icons/72.png  "$RES/mipmap-mdpi/ic_launcher.png"     2>/dev/null || \
-          cp www/72.png        "$RES/mipmap-mdpi/ic_launcher.png"      2>/dev/null || true
+          cp www/icons/72.png  "$RES/mipmap-mdpi/ic_launcher.png"    2>/dev/null || true
+          cp www/icons/72.png  "$RES/mipmap-hdpi/ic_launcher.png"    2>/dev/null || true
+          cp www/icons/96.png  "$RES/mipmap-xhdpi/ic_launcher.png"   2>/dev/null || true
+          cp www/icons/144.png "$RES/mipmap-xxhdpi/ic_launcher.png"  2>/dev/null || true
+          cp www/icons/192.png "$RES/mipmap-xxxhdpi/ic_launcher.png" 2>/dev/null || true
+          cp www/icons/512.png "$RES/drawable/ic_launcher_foreground.png" 2>/dev/null || true
 
-          cp www/icons/72.png  "$RES/mipmap-hdpi/ic_launcher.png"     2>/dev/null || \
-          cp www/72.png        "$RES/mipmap-hdpi/ic_launcher.png"      2>/dev/null || true
-
-          cp www/icons/96.png  "$RES/mipmap-xhdpi/ic_launcher.png"    2>/dev/null || \
-          cp www/96.png        "$RES/mipmap-xhdpi/ic_launcher.png"     2>/dev/null || true
-
-          cp www/icons/144.png "$RES/mipmap-xxhdpi/ic_launcher.png"   2>/dev/null || \
-          cp www/144.png       "$RES/mipmap-xxhdpi/ic_launcher.png"    2>/dev/null || true
-
-          cp www/icons/192.png "$RES/mipmap-xxxhdpi/ic_launcher.png"  2>/dev/null || \
-          cp www/192.png       "$RES/mipmap-xxxhdpi/ic_launcher.png"   2>/dev/null || true
-
-          # Copier aussi comme ic_launcher_round (icône ronde Android)
           for dir in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
             cp "$RES/mipmap-${dir}/ic_launcher.png" \
                "$RES/mipmap-${dir}/ic_launcher_round.png" 2>/dev/null || true
           done
 
-          # ic_launcher_foreground pour les adaptive icons
-          cp www/icons/512.png "$RES/drawable/ic_launcher_foreground.png" 2>/dev/null || \
-          cp www/512.png       "$RES/drawable/ic_launcher_foreground.png"  2>/dev/null || true
+          printf '<?xml version="1.0" encoding="utf-8"?>\n<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n    <background android:drawable="@color/ic_launcher_background"/>\n    <foreground android:drawable="@drawable/ic_launcher_foreground"/>\n</adaptive-icon>\n' \
+            > "$RES/mipmap-anydpi-v26/ic_launcher.xml"
 
-          # Adaptive icon XML (Android 8+)
-          cat > "$RES/mipmap-anydpi-v26/ic_launcher.xml" << 'XML'
-          <?xml version="1.0" encoding="utf-8"?>
-          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-              <background android:drawable="@color/ic_launcher_background"/>
-              <foreground android:drawable="@drawable/ic_launcher_foreground"/>
-          </adaptive-icon>
-          XML
+          printf '<?xml version="1.0" encoding="utf-8"?>\n<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n    <background android:drawable="@color/ic_launcher_background"/>\n    <foreground android:drawable="@drawable/ic_launcher_foreground"/>\n</adaptive-icon>\n' \
+            > "$RES/mipmap-anydpi-v26/ic_launcher_round.xml"
 
-          cat > "$RES/mipmap-anydpi-v26/ic_launcher_round.xml" << 'XML'
-          <?xml version="1.0" encoding="utf-8"?>
-          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-              <background android:drawable="@color/ic_launcher_background"/>
-              <foreground android:drawable="@drawable/ic_launcher_foreground"/>
-          </adaptive-icon>
-          XML
-
-          # Couleur de fond de l'icône
           mkdir -p "$RES/values"
-          if ! grep -q "ic_launcher_background" "$RES/values/colors.xml" 2>/dev/null; then
-            cat >> "$RES/values/colors.xml" << 'XML' || \
-            cat > "$RES/values/colors.xml" << 'XML'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <color name="ic_launcher_background">#0A0B1E</color>
-          </resources>
-          XML
+          if grep -q "ic_launcher_background" "$RES/values/colors.xml" 2>/dev/null; then
+            echo "couleur deja presente"
+          else
+            printf '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#0A0B1E</color>\n</resources>\n' \
+              > "$RES/values/ic_launcher_colors.xml"
           fi
+          echo "Icones configurees"
 
-          echo "✅ Icônes configurées"
-          ls -la "$RES/mipmap-xxhdpi/"
-
-      # ════════════════════════════════════════════════════════
-      # IMPRESSION — Plugin ThermalPrinter complet
-      # ════════════════════════════════════════════════════════
       - name: Inject ThermalPrinter plugin
         run: |
           PLUGIN_DIR="android/app/src/main/java/com/lotato/printer"
           mkdir -p "$PLUGIN_DIR"
-          cp android-plugin/src/main/java/com/lotato/printer/ThermalPrinterPlugin.java \
-             "$PLUGIN_DIR/"
-          echo "✅ Plugin copié"
+          cp android-plugin/src/main/java/com/lotato/printer/ThermalPrinterPlugin.java "$PLUGIN_DIR/"
 
       - name: Create Sunmi AIDL interfaces
         run: |
           AIDL_DIR="android/app/src/main/aidl/woyou/aidlservice/jiuiv5"
           mkdir -p "$AIDL_DIR"
 
-          printf '%s\n' \
-            'package woyou.aidlservice.jiuiv5;' \
-            'import woyou.aidlservice.jiuiv5.ICallback;' \
-            'import android.graphics.Bitmap;' \
-            'interface IWoyouService {' \
-            'void printerInit(in ICallback callback);' \
-            'void printText(String text, in ICallback callback);' \
-            'void printBitmap(in Bitmap bitmap, in ICallback callback);' \
-            'void cutPaper(in ICallback callback);' \
-            'void lineWrap(int n, in ICallback callback);' \
-            'void setAlignment(int alignment, in ICallback callback);' \
-            'void setFontSize(float fontSize, in ICallback callback);' \
-            '}' > "$AIDL_DIR/IWoyouService.aidl"
+          printf 'package woyou.aidlservice.jiuiv5;\nimport woyou.aidlservice.jiuiv5.ICallback;\nimport android.graphics.Bitmap;\ninterface IWoyouService {\nvoid printerInit(in ICallback callback);\nvoid printText(String text, in ICallback callback);\nvoid printBitmap(in Bitmap bitmap, in ICallback callback);\nvoid cutPaper(in ICallback callback);\nvoid lineWrap(int n, in ICallback callback);\nvoid setAlignment(int alignment, in ICallback callback);\nvoid setFontSize(float fontSize, in ICallback callback);\n}\n' \
+            > "$AIDL_DIR/IWoyouService.aidl"
 
-          printf '%s\n' \
-            'package woyou.aidlservice.jiuiv5;' \
-            'interface ICallback {' \
-            'void onRunResult(boolean isSuccess);' \
-            'void onReturnString(String result);' \
-            'void onRaiseException(int code, String msg);' \
-            '}' > "$AIDL_DIR/ICallback.aidl"
+          printf 'package woyou.aidlservice.jiuiv5;\ninterface ICallback {\nvoid onRunResult(boolean isSuccess);\nvoid onReturnString(String result);\nvoid onRaiseException(int code, String msg);\n}\n' \
+            > "$AIDL_DIR/ICallback.aidl"
 
-          echo "✅ AIDL Sunmi créés"
-          cat "$AIDL_DIR/IWoyouService.aidl"
+          echo "AIDL Sunmi crees"
 
-      - name: Download Sunmi SDK AAR
+      - name: Download Sunmi SDK
         run: |
           LIBS_DIR="android/app/libs"
           mkdir -p "$LIBS_DIR"
-
-          # Télécharger le SDK Sunmi officiel depuis GitHub
-          echo "Téléchargement SDK Sunmi..."
           curl -fsSL \
             "https://github.com/sunmi-os/SunmiPrinterLibrary/raw/master/PrinterLibrary/sunmiprinter.aar" \
-            -o "$LIBS_DIR/sunmiprinter.aar" && \
-            echo "✅ SDK Sunmi téléchargé: $(ls -lh $LIBS_DIR/sunmiprinter.aar)" || \
-            echo "⚠️ SDK Sunmi non disponible - impression via PrintManager uniquement"
+            -o "$LIBS_DIR/sunmiprinter.aar" \
+            && echo "SDK Sunmi telecharge" \
+            || echo "SDK Sunmi non disponible - fallback PrintManager"
 
-      - name: Configure build.gradle (impression + icônes)
+      - name: Configure build.gradle
         run: |
           BG="android/app/build.gradle"
+          ROOT_BG="android/build.gradle"
 
-          # Activer AIDL
           grep -q "aidl true" "$BG" || \
             sed -i 's/android {/android {\n    buildFeatures { aidl true }/' "$BG"
 
-          # Ajouter libs/ comme source de dépendances locales
           grep -q "fileTree.*libs" "$BG" || \
             sed -i 's/dependencies {/dependencies {\n    implementation fileTree(dir: "libs", include: ["*.aar", "*.jar"])/' "$BG"
 
-          # Ajouter dépendance Sunmi depuis Maven (fallback si AAR absent)
-          grep -q "sunmi" "$BG" || \
-            sed -i 's/dependencies {/dependencies {\n    compileOnly "com.sunmi:printerlibrary:1.0.14"/' "$BG"
+          grep -q "jitpack" "$ROOT_BG" || \
+            sed -i 's/repositories {/repositories {\n        maven { url "https:\/\/jitpack.io" }/' "$ROOT_BG"
 
-          # Ajouter dépôt Maven Sunmi dans android/build.gradle
-          ROOT_BG="android/build.gradle"
-          grep -q "jitpack\|sunmi" "$ROOT_BG" || \
-            sed -i 's/repositories {/repositories {\n        maven { url "https:\/\/jitpack.io" }\n        maven { url "https:\/\/raw.githubusercontent.com\/sunmi-os\/SunmiPrinterLibrary\/master" }/' "$ROOT_BG"
-
-          echo "✅ build.gradle configuré"
-          echo "--- android/app/build.gradle (extrait) ---"
-          grep -A3 "buildFeatures\|sunmi\|fileTree" "$BG" | head -20
+          echo "build.gradle configure"
 
       - name: Register plugin in MainActivity
         run: |
@@ -205,39 +134,27 @@ jobs:
           if [ -z "$MAIN" ]; then
             MAIN=$(find android -name "MainActivity.kt" | head -1)
           fi
-          echo "→ MainActivity : $MAIN"
+          echo "MainActivity : $MAIN"
 
           if echo "$MAIN" | grep -q ".java"; then
-            # Java — ajouter import si absent
             grep -q "ThermalPrinterPlugin" "$MAIN" || \
               sed -i 's/import com.getcapacitor.BridgeActivity;/import com.getcapacitor.BridgeActivity;\nimport com.lotato.printer.ThermalPrinterPlugin;/' "$MAIN"
-            # Ajouter registerPlugin avant super.onCreate
             grep -q "registerPlugin" "$MAIN" || \
               sed -i 's/super\.onCreate/registerPlugin(ThermalPrinterPlugin.class);\n        super.onCreate/' "$MAIN"
           else
-            # Kotlin
             grep -q "ThermalPrinterPlugin" "$MAIN" || \
               sed -i 's/import com.getcapacitor.BridgeActivity/import com.getcapacitor.BridgeActivity\nimport com.lotato.printer.ThermalPrinterPlugin/' "$MAIN"
             grep -q "registerPlugin" "$MAIN" || \
               sed -i 's/super\.onCreate/registerPlugin(ThermalPrinterPlugin::class.java)\n        super.onCreate/' "$MAIN"
           fi
-
-          echo "✅ MainActivity modifié :"
           cat "$MAIN"
 
-      - name: Add Android permissions
+      - name: Add permissions
         run: |
           MANIFEST="android/app/src/main/AndroidManifest.xml"
-          grep -q "BLUETOOTH_CONNECT" "$MANIFEST" || sed -i \
-            's/<uses-permission android:name="android.permission.INTERNET" \/>/\
-          <uses-permission android:name="android.permission.INTERNET" \/>\
-          <uses-permission android:name="android.permission.BLUETOOTH" \/>\
-          <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" \/>\
-          <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" \/>\
-          <uses-permission android:name="android.permission.BLUETOOTH_SCAN" \/>\
-          <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" \/>/' \
+          grep -q "BLUETOOTH_CONNECT" "$MANIFEST" || \
+            sed -i 's/<uses-permission android:name="android.permission.INTERNET" \/>/\<uses-permission android:name="android.permission.INTERNET" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" \/>\n    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" \/>/' \
             "$MANIFEST"
-          echo "✅ Permissions ajoutées"
 
       - name: Make Gradle executable
         run: chmod +x android/gradlew
@@ -252,7 +169,6 @@ jobs:
           APK_NAME="LOTATO-PRO-v${{ github.run_number }}-${DATE}.apk"
           cp android/app/build/outputs/apk/debug/app-debug.apk "$APK_NAME"
           echo "APK_NAME=$APK_NAME" >> $GITHUB_ENV
-          echo "✅ APK : $APK_NAME ($(du -sh $APK_NAME | cut -f1))"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
