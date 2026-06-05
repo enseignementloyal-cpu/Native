@@ -74,20 +74,29 @@ jobs:
           printf '<?xml version="1.0" encoding="utf-8"?>\n<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">\n    <background android:drawable="@color/ic_launcher_background"/>\n    <foreground android:drawable="@drawable/ic_launcher_foreground"/>\n</adaptive-icon>\n' \
             > "$RES/mipmap-anydpi-v26/ic_launcher_round.xml"
 
-          mkdir -p "$RES/values"
-          if grep -q "ic_launcher_background" "$RES/values/colors.xml" 2>/dev/null; then
-            echo "couleur deja presente"
+          # IMPORTANT : modifier ic_launcher_background.xml existant au lieu d'en créer un nouveau
+          # Capacitor génère déjà ce fichier — on le met à jour avec notre couleur
+          BG_FILE="$RES/values/ic_launcher_background.xml"
+          if [ -f "$BG_FILE" ]; then
+            sed -i 's|#[A-Fa-f0-9]*</color>|#0A0B1E</color>|g' "$BG_FILE"
+            echo "ic_launcher_background.xml mis a jour"
           else
-            printf '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#0A0B1E</color>\n</resources>\n' \
-              > "$RES/values/ic_launcher_colors.xml"
+            printf '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">#0A0B1E</color>\n</resources>\n' > "$BG_FILE"
+            echo "ic_launcher_background.xml cree"
           fi
+
+          # Supprimer tout fichier dupliqué qu'on aurait créé
+          rm -f "$RES/values/ic_launcher_colors.xml"
+
           echo "Icones configurees"
+          ls "$RES/mipmap-xxhdpi/"
 
       - name: Inject ThermalPrinter plugin
         run: |
           PLUGIN_DIR="android/app/src/main/java/com/lotato/printer"
           mkdir -p "$PLUGIN_DIR"
           cp android-plugin/src/main/java/com/lotato/printer/ThermalPrinterPlugin.java "$PLUGIN_DIR/"
+          echo "Plugin copie"
 
       - name: Create Sunmi AIDL interfaces
         run: |
