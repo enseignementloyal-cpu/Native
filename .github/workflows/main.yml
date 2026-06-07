@@ -56,12 +56,27 @@ jobs:
           mkdir -p "$RES/mipmap-anydpi-v26"
           mkdir -p "$RES/drawable"
 
-          cp www/icons/72.png  "$RES/mipmap-mdpi/ic_launcher.png"    2>/dev/null || true
-          cp www/icons/72.png  "$RES/mipmap-hdpi/ic_launcher.png"    2>/dev/null || true
-          cp www/icons/96.png  "$RES/mipmap-xhdpi/ic_launcher.png"   2>/dev/null || true
-          cp www/icons/144.png "$RES/mipmap-xxhdpi/ic_launcher.png"  2>/dev/null || true
-          cp www/icons/192.png "$RES/mipmap-xxxhdpi/ic_launcher.png" 2>/dev/null || true
-          cp www/icons/512.png "$RES/drawable/ic_launcher_foreground.png" 2>/dev/null || true
+          # Cherche les icônes dans www/icons/ OU www/ directement
+          ICON_72=$(find www -name "72.png" | head -1)
+          ICON_96=$(find www -name "96.png" | head -1)
+          ICON_144=$(find www -name "144.png" | head -1)
+          ICON_192=$(find www -name "192.png" | head -1)
+          ICON_512=$(find www -name "512.png" | head -1)
+
+          echo "Icônes trouvées: 72=$ICON_72 96=$ICON_96 144=$ICON_144 192=$ICON_192 512=$ICON_512"
+
+          [ -n "$ICON_72" ]  && cp "$ICON_72"  "$RES/mipmap-mdpi/ic_launcher.png"
+          [ -n "$ICON_72" ]  && cp "$ICON_72"  "$RES/mipmap-hdpi/ic_launcher.png"
+          [ -n "$ICON_96" ]  && cp "$ICON_96"  "$RES/mipmap-xhdpi/ic_launcher.png"
+          [ -n "$ICON_144" ] && cp "$ICON_144" "$RES/mipmap-xxhdpi/ic_launcher.png"
+          [ -n "$ICON_192" ] && cp "$ICON_192" "$RES/mipmap-xxxhdpi/ic_launcher.png"
+          [ -n "$ICON_512" ] && cp "$ICON_512" "$RES/drawable/ic_launcher_foreground.png"
+          # Fallback si aucune icône trouvée — utiliser une icône par défaut Android
+          for dir in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            if [ ! -f "$RES/mipmap-${dir}/ic_launcher.png" ]; then
+              echo "⚠️ Icône manquante pour $dir — utilisation du défaut"
+            fi
+          done
 
           for dir in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
             cp "$RES/mipmap-${dir}/ic_launcher.png" \
